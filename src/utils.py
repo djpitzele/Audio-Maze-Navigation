@@ -606,3 +606,113 @@ def create_animation_frames(
         plt.close(fig)
 
     print(f"Created {len(trajectory)} frames in {output_dir}/")
+
+
+def get_microphone_positions(sensor_mask: np.ndarray) -> list:
+    """
+    Extract microphone positions from a sensor mask array.
+
+    Parameters
+    ----------
+    sensor_mask : np.ndarray
+        Boolean array where True indicates microphone positions
+
+    Returns
+    -------
+    list
+        List of (row, col) tuples for each microphone position
+    """
+    positions = []
+    rows, cols = np.where(sensor_mask)
+    for r, c in zip(rows, cols):
+        positions.append((int(r), int(c)))
+    return positions
+
+
+def plot_acoustic_field(
+    maze: np.ndarray,
+    sound_speed: np.ndarray,
+    agent_pos: Tuple[int, int],
+    source_pos: Tuple[int, int],
+    sensor_data: Optional[np.ndarray] = None,
+    microphone_positions: Optional[list] = None,
+    time_idx: int = 0,
+    title: str = "Acoustic Environment",
+    figsize: Tuple[int, int] = (12, 5),
+) -> plt.Figure:
+    """
+    Visualize the acoustic properties of the maze and sound propagation.
+
+    Parameters
+    ----------
+    maze : np.ndarray
+        Binary maze array (0=air, 1=wall)
+    sound_speed : np.ndarray
+        Sound speed field (m/s) at each grid point
+    agent_pos : Tuple[int, int]
+        Agent position (row, col)
+    source_pos : Tuple[int, int]
+        Sound source position (row, col)
+    sensor_data : np.ndarray, optional
+        Time-series sensor data to plot
+    microphone_positions : list, optional
+        List of (row, col) tuples for microphone positions
+    time_idx : int, optional
+        Which time index to display (default: 0)
+    title : str, optional
+        Plot title
+    figsize : Tuple[int, int], optional
+        Figure size
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure object
+    """
+    if sensor_data is not None:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    else:
+        fig, ax1 = plt.subplots(1, 1, figsize=(figsize[0]//2, figsize[1]))
+
+    # Plot 1: Sound speed field (shows maze geometry acoustically)
+    im1 = ax1.imshow(
+        sound_speed,
+        cmap='viridis',
+        interpolation='nearest',
+        origin='lower'
+    )
+    ax1.set_title('Acoustic Properties (Sound Speed)')
+    ax1.set_xlabel('X (grid points)')
+    ax1.set_ylabel('Y (grid points)')
+
+    # Add markers
+    ax1.plot(source_pos[1], source_pos[0], 'r*', markersize=15, label='Source')
+    ax1.plot(agent_pos[1], agent_pos[0], 'bo', markersize=10, label='Agent')
+
+    # Add microphone positions if provided
+    if microphone_positions is not None and len(microphone_positions) > 0:
+        mic_rows = [pos[0] for pos in microphone_positions]
+        mic_cols = [pos[1] for pos in microphone_positions]
+        ax1.scatter(mic_cols, mic_rows, c='cyan', marker='x', s=100,
+                   linewidths=2, label=f'Mics ({len(microphone_positions)})')
+
+    ax1.legend()
+
+    plt.colorbar(im1, ax=ax1, label='Sound Speed (m/s)')
+
+    # Plot 2: Sensor signal (if provided)
+    if sensor_data is not None:
+        num_sensors = sensor_data.shape[0]
+        time_axis = np.arange(sensor_data.shape[1])
+
+        for i in range(num_sensors):
+            ax2.plot(time_axis, sensor_data[i], label=f'Sensor {i}', alpha=0.7)
+
+        ax2.set_xlabel('Time Step')
+        ax2.set_ylabel('Pressure')
+        ax2.set_title('Sensor Time Series')
+        ax2.legend(loc='upper right', fontsize=8)
+        ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    return fig

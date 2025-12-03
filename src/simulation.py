@@ -186,7 +186,7 @@ class AcousticSimulator:
         signal *= gaussian_window
 
         # Normalize
-        signal = signal / np.max(np.abs(signal))
+        signal = (signal / np.max(np.abs(signal))) * 100000.0  # Scale amplitude
 
         # Create source
         source = kSource()
@@ -197,16 +197,102 @@ class AcousticSimulator:
 
         return source
 
+    def get_microphone_positions(
+        self,
+        grid: kWaveGrid,
+        agent_pos: Tuple[int, int],
+        maze: np.ndarray
+    ) -> list:
+        """
+        Get the positions of all microphones in the array.
+
+        Parameters
+        ----------
+        grid : kWaveGrid
+            k-Wave grid object
+        agent_pos : Tuple[int, int]
+            Agent position (row, col)
+        maze : np.ndarray
+            Binary maze array (0 = air, 1 = wall)
+
+        Returns
+        -------
+        list
+            List of (row, col) tuples for each microphone position
+        """
+        sensor = self._create_sensor_array(grid, agent_pos, maze)
+        positions = []
+        rows, cols = np.where(sensor.mask)
+        for r, c in zip(rows, cols):
+            positions.append((int(r), int(c)))
+        return positions
+
+    def _find_nearest_air(
+        self,
+        maze: np.ndarray,
+        start_row: int,
+        start_col: int,
+        agent_pos: Tuple[int, int]
+    ) -> Tuple[int, int]:
+        """
+        Find the nearest air position to a given point.
+
+        This method searches in expanding squares around the starting position
+        to find the nearest cell that is air (maze value == 0). If no air is
+        found within the search radius, it falls back to the agent position.
+
+        Parameters
+        ----------
+        maze : np.ndarray
+            Binary maze array (0 = air, 1 = wall)
+        start_row : int
+            Starting row position
+        start_col : int
+            Starting column position
+        agent_pos : Tuple[int, int]
+            Agent position as fallback (guaranteed to be air)
+
+        Returns
+        -------
+        Tuple[int, int]
+            (row, col) of nearest air position
+        """
+        max_search_radius = 5
+
+        for radius in range(max_search_radius + 1):
+            # Check positions at current radius
+            for dr in range(-radius, radius + 1):
+                for dc in range(-radius, radius + 1):
+                    # Only check perimeter of square (not interior)
+                    if abs(dr) != radius and abs(dc) != radius:
+                        continue
+
+                    r = start_row + dr
+                    c = start_col + dc
+
+                    # Bounds check
+                    if r < 0 or r >= maze.shape[0] or c < 0 or c >= maze.shape[1]:
+                        continue
+
+                    # Check if air
+                    if maze[r, c] == 0:
+                        return (r, c)
+
+        # Fallback: return agent position (guaranteed to be air)
+        return agent_pos
+
     def _create_sensor_array(
         self,
         grid: kWaveGrid,
-        agent_pos: Tuple[int, int]
+        agent_pos: Tuple[int, int],
+        maze: np.ndarray
     ) -> kSensor:
         """
-        Create a circular microphone array centered at the agent position.
+        Create a circular microphone array around the agent position.
 
-        The array provides directional acoustic information, enabling the
-        agent to distinguish reflections from different directions.
+        This method places multiple microphones in a circular pattern around
+        the agent to capture directional acoustic information. If a calculated
+        microphone position falls in a wall, the nearest air position is used.
 
         Parameters
         ----------
@@ -214,32 +300,40 @@ class AcousticSimulator:
             k-Wave grid object
         agent_pos : Tuple[int, int]
             (row, col) position of the agent in grid coordinates
+        maze : np.ndarray
+            Binary maze array (0 = air, 1 = wall) for wall avoidance
 
         Returns
         -------
         kSensor
-            Configured k-Wave sensor object
+            Configured k-Wave sensor object with microphone array
         """
-        # Create sensor mask
+        # Create sensor mask for microphone array
         sensor_mask = np.zeros((grid.Nx, grid.Ny), dtype=bool)
 
-        # Place microphones in a circle around agent position
+        # Calculate angles for circular array
         angles = np.linspace(0, 2 * np.pi, self.num_microphones, endpoint=False)
 
         for angle in angles:
-            # Calculate microphone position
+            # Calculate ideal microphone position
             mic_row = int(agent_pos[0] + self.microphone_array_radius * np.cos(angle))
             mic_col = int(agent_pos[1] + self.microphone_array_radius * np.sin(angle))
 
-            # Ensure within bounds
+            # Bounds check
             mic_row = np.clip(mic_row, 0, grid.Nx - 1)
             mic_col = np.clip(mic_col, 0, grid.Ny - 1)
 
+            # Check if position is in wall - if so, find nearest air
+            if maze[mic_row, mic_col] == 1:
+                mic_row, mic_col = self._find_nearest_air(maze, mic_row, mic_col, agent_pos)
+
+            # Place microphone
             sensor_mask[mic_row, mic_col] = True
 
-        # Create sensor
+        # Create sensor with record option to capture time series
         sensor = kSensor()
         sensor.mask = sensor_mask
+        sensor.record = ['p']  # Record pressure
 
         return sensor
 
@@ -308,8 +402,8 @@ class AcousticSimulator:
         # Create source
         source = self._create_source(grid, source_pos)
 
-        # Create sensor array
-        sensor = self._create_sensor_array(grid, agent_pos)
+        # Create sensor array (with wall avoidance)
+        sensor = self._create_sensor_array(grid, agent_pos, maze)
 
         # Configure simulation options
         # Note: k-Wave requires save_to_disk=True for CPU simulations
