@@ -22,6 +22,7 @@ try:
     from kwave.ksensor import kSensor
     from kwave.kspaceFirstOrder2D import kspaceFirstOrder2D
     from kwave.options.simulation_options import SimulationOptions
+    from kwave.options.simulation_execution_options import SimulationExecutionOptions
 except ImportError as e:
     raise ImportError(
         "k-wave-python is required for acoustic simulations. "
@@ -190,7 +191,9 @@ class AcousticSimulator:
         # Create source
         source = kSource()
         source.p_mask = source_mask
-        source.p = signal
+        # k-Wave expects signal to be 2D: (num_source_points, num_time_steps)
+        # Reshape to (1, Nt) for single source point
+        source.p = signal.reshape(1, -1)
 
         return source
 
@@ -309,12 +312,19 @@ class AcousticSimulator:
         sensor = self._create_sensor_array(grid, agent_pos)
 
         # Configure simulation options
+        # Note: k-Wave requires save_to_disk=True for CPU simulations
         simulation_options = SimulationOptions(
             pml_inside=False,
             pml_size=self.pml_size,
             data_cast='single',
-            save_to_disk=False,
+            save_to_disk=True,  # Required for CPU simulations
             smooth_p0=False,
+        )
+
+        # Configure execution options
+        execution_options = SimulationExecutionOptions(
+            is_gpu_simulation=False,
+            verbose_level=2 if verbose else 0,
         )
 
         # Suppress warnings during simulation
@@ -329,15 +339,18 @@ class AcousticSimulator:
                 source=source,
                 sensor=sensor,
                 simulation_options=simulation_options,
-                execution_options={'verbose': verbose}
+                execution_options=execution_options
             )
 
         # Extract pressure data
-        # sensor_data.p has shape (num_sensors, num_time_steps)
+        # k-Wave returns shape (num_time_steps, num_sensors) - need to transpose!
         pressure_data = sensor_data['p']
 
-        # Ensure 2D array even if single sensor
-        if pressure_data.ndim == 1:
+        # Transpose to get (num_sensors, num_time_steps)
+        if pressure_data.ndim == 2:
+            pressure_data = pressure_data.T  # Transpose: (time, sensors) -> (sensors, time)
+        elif pressure_data.ndim == 1:
+            # Single sensor case
             pressure_data = pressure_data.reshape(1, -1)
 
         return pressure_data.astype(np.float32)
