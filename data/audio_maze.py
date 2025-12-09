@@ -8,7 +8,6 @@ class AudioMaze:
     def __init__(self, width, height):
         self.gen_maze_obj(width, height)
         self.solve_maze()
-        self.precompuate_audio()
         
     def gen_maze_obj(self, width, height):
         self.maze = Maze()
@@ -48,9 +47,6 @@ class AudioMaze:
                         self.action_grid[nr][nc] = action
                         visited.add((nr, nc))
                         queue.append((nr, nc))
-    
-    def precompuate_audio(self):
-        pass
     
     def visualize_maze(self):
         to_show = self.maze.grid.astype(float)
