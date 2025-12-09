@@ -3,8 +3,9 @@ numpy
 scipy
 matplotlib
 
-# k-Wave for acoustic simulations (CRITICAL)
+# k-Wave for acoustic simulations
 k-wave-python
+mazelib
 
 # Deep Learning
 torch

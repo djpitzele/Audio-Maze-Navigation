@@ -72,10 +72,12 @@ class AudioMazeSim:
         # Generate tone burst signal
         self.source.p = tone_burst(1 / self.kgrid.dt, self.f0, self.num_cycles)
 
-        # Create sensor - record FULL pressure field
+        # Create sensor - record FULL pressure field TIME-SERIES
+        # CRITICAL: Recording 'p' for time-series (needed for spectrograms)
+        # NOT 'p_final'/'p_rms' which are aggregated values
         self.sensor = kSensor(
             mask=np.ones((self.Nx, self.Ny), dtype=bool),  # Record everywhere!
-            record=['p_final', 'p_rms']  # Final pressure and RMS
+            record=['p']  # Pressure time-series at each point
         )
 
     def run_sim(self):
@@ -112,8 +114,15 @@ class AudioMazeSim:
         plt.show()
         
     def visualize_wave(self):
-        p_final = np.reshape(self.sensor_data['p_final'], (self.Nx, self.Ny), order='F')
-        p_rms = np.reshape(self.sensor_data['p_rms'], (self.Nx, self.Ny), order='F')
+        # Reshape pressure time-series to 3D: (Nx, Ny, Nt)
+        pressure_timeseries = self.sensor_data['p'].T
+        pressure_field = np.reshape(pressure_timeseries.T, (self.Nx, self.Ny, self.kgrid.Nt), order='F')
+
+        # Compute p_final and p_rms from time-series for visualization
+        p_final = pressure_field[:, :, -1]
+        p_rms = np.sqrt(np.mean(pressure_field**2, axis=2))
+
+        print(f"Pressure field shape: {pressure_field.shape}")
         print(f"Final pressure range: [{p_final.min():.3f}, {p_final.max():.3f}]")
         print(f"RMS pressure range: [{p_rms.min():.6f}, {p_rms.max():.6f}]")
 
