@@ -54,11 +54,12 @@ class AudioCave:
 
         # Find start and goal positions
         air_cells = np.argwhere(grid == 0)
-        if len(air_cells) > 0:
-            # Start at top-left area
-            top_left = air_cells[np.argmin(air_cells[:, 0] + air_cells[:, 1])]
-            # Goal at bottom-right area
-            bottom_right = air_cells[np.argmax(air_cells[:, 0] + air_cells[:, 1])]
+        if air_cells.size > 0:
+            top_left = air_cells[np.random.randint(air_cells.shape[0])]
+            bottom_right = top_left
+            # choose end point sufficiently far from start
+            while np.linalg.norm(bottom_right - top_left) < (self.width + self.height) / 4:
+                bottom_right = air_cells[np.random.randint(air_cells.shape[0])]
             self.start = tuple(top_left)
             self.end = tuple(bottom_right)
         else:
@@ -222,9 +223,9 @@ class AudioCave:
 
         # Cave layout
         axes[0].imshow(self.grid.T, origin='lower', cmap='binary')
-        axes[0].scatter([self.start[1]], [self.start[0]], s=200, c='green',
+        axes[0].scatter([self.start[0]], [self.start[1]], s=200, c='green',
                        marker='o', edgecolors='black', linewidths=2, label='Start', zorder=10)
-        axes[0].scatter([self.end[1]], [self.end[0]], s=200, c='red',
+        axes[0].scatter([self.end[0]], [self.end[1]], s=200, c='red',
                        marker='*', edgecolors='black', linewidths=2, label='Goal', zorder=10)
         axes[0].set_title(f'Cave Layout ({self.height}x{self.width})')
         axes[0].set_xlabel('X')
@@ -237,7 +238,7 @@ class AudioCave:
         action_numeric = np.vectorize(symbol_map.get)(self.action_grid)
         axes[1].imshow(action_numeric.T, origin='lower', cmap='tab10', vmin=0, vmax=5)
         axes[1].contour(self.grid.T, levels=[0.5], colors='black', linewidths=1)
-        axes[1].scatter([self.end[1]], [self.end[0]], s=200, c='red',
+        axes[1].scatter([self.end[0]], [self.end[1]], s=200, c='red',
                        marker='*', edgecolors='black', linewidths=2, label='Goal', zorder=10)
         axes[1].set_title('Action Field')
         axes[1].set_xlabel('X')
