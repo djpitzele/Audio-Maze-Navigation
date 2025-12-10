@@ -66,6 +66,7 @@ class AudioCave:
             self.start = (1, 1)
             self.end = (self.height - 2, self.width - 2)
 
+        print(f"end: {self.end}")
         self.grid = grid.astype(np.int32)
 
     def _smooth_cave(self, grid, neighbors_threshold=5):
