@@ -201,11 +201,13 @@ class AudioCave:
         queue = deque([start_node])
         visited = {start_node}
 
+        # BFS from goal: for each neighbor, assign the action that walks back to the goal
+        # Grid convention: row = y (up is -1), col = x (right is +1)
         directions = [
-            ((0, 1), "left"),
-            ((0, -1), "right"),
-            ((1, 0), "up"),
-            ((-1, 0), "down")
+            ((0, 1), "left"),   # neighbor to the right -> go left to goal
+            ((0, -1), "right"), # neighbor to the left -> go right to goal
+            ((1, 0), "up"),     # neighbor below -> go up to goal
+            ((-1, 0), "down")   # neighbor above -> go down to goal
         ]
 
         while queue:
@@ -217,6 +219,40 @@ class AudioCave:
                         self.action_grid[nr][nc] = action
                         visited.add((nr, nc))
                         queue.append((nr, nc))
+
+    def expand_to_3x3_blocks(self):
+        """
+        Expand cave grid so each cell becomes a 3x3 block.
+        This ensures agents with 3x3 footprint can navigate anywhere.
+
+        Returns:
+            Tuple of (expanded_grid, expanded_action_grid, new_start, new_end)
+        """
+        old_rows, old_cols = self.grid.shape
+        new_rows, new_cols = old_rows * 3, old_cols * 3
+
+        # Expand grid: each cell -> 3x3 block
+        expanded_grid = np.zeros((new_rows, new_cols), dtype=np.int32)
+        for r in range(old_rows):
+            for c in range(old_cols):
+                # Fill 3x3 block with same value
+                for dr in range(3):
+                    for dc in range(3):
+                        expanded_grid[r * 3 + dr, c * 3 + dc] = self.grid[r, c]
+
+        # Expand action_grid: center of each 3x3 block gets the action
+        expanded_action_grid = [["" for _ in range(new_cols)] for _ in range(new_rows)]
+        for r in range(old_rows):
+            for c in range(old_cols):
+                # Put action at center of 3x3 block (offset by 1)
+                nr, nc = r * 3 + 1, c * 3 + 1
+                expanded_action_grid[nr][nc] = self.action_grid[r][c]
+
+        # Scale positions (to center of 3x3 blocks)
+        new_start = (self.start[0] * 3 + 1, self.start[1] * 3 + 1)
+        new_end = (self.end[0] * 3 + 1, self.end[1] * 3 + 1)
+
+        return expanded_grid, expanded_action_grid, new_start, new_end
 
     def visualize(self):
         """Visualize cave and action field."""

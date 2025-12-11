@@ -3,6 +3,13 @@ import matplotlib.pyplot as plt
 from audio_cave import AudioCave
 import h5py
 from datetime import datetime
+import os
+
+# PERFORMANCE FIX: Limit CPU threads to prevent slowdown
+# Sometimes too many threads causes contention and slows down simulation
+os.environ['OMP_NUM_THREADS'] = '4'
+os.environ['MKL_NUM_THREADS'] = '4'
+os.environ['NUMEXPR_NUM_THREADS'] = '4'
 
 from kwave.kgrid import kWaveGrid
 from kwave.kmedium import kWaveMedium
@@ -15,12 +22,26 @@ from kwave.utils.signals import tone_burst
 
 class AudioCaveSim:
     def __init__(self, Nx, Ny, res):
-        self.Nx = Nx # 4n + 1 for some n
-        self.Ny = Ny # 4n + 1 for some n
-        self.dx = res  # 1cm resolution
+        """
+        Initialize AudioCaveSim.
+
+        Args:
+            Nx, Ny: Grid size
+            res: Resolution
+
+        Process:
+            1. Generate cave at FULL size (Nx × Ny) with natural detail
+            2. Run k-Wave simulation
+            3. Action labels can be validated using 3x3 footprint check in dataloader
+        """
+        self.Nx = Nx
+        self.Ny = Ny
+        self.dx = res
         self.dy = res
-        
-        self.am = AudioCave(Nx, Ny) # for some reason mazelib doubles dimensions (2n + 1)
+
+        print(f"Generating cave at {Nx}x{Ny}")
+        self.am = AudioCave(Nx, Ny)
+
         self.define_constants()
         print("Initializing simulation")
         self.init_sim()
