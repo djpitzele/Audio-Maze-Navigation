@@ -25,6 +25,7 @@ from .models import (
     AcousticCNN1D,
     CompactAcousticNet,
     SpatialTemporalAcousticNet,
+    FocalLoss,
 )
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     "AcousticCNN1D",
     "CompactAcousticNet",
     "SpatialTemporalAcousticNet",
+    "FocalLoss",
 ]

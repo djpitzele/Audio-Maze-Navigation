@@ -172,15 +172,24 @@ def convert_dataset_to_lmdb(input_dir, output_dir, agent_radius=1, map_size_gb=2
                     )
                     sample_idx += 1
 
-    # Save metadata
+    # Save metadata (convert numpy types to native Python for JSON)
     metadata = {
-        'num_samples': sample_idx,
+        'num_samples': int(sample_idx),
         'num_files': len(file_infos),
-        'action_counts': action_counts,
-        'agent_radius': agent_radius,
-        'mic_offsets': mic_offsets,
-        'action_map': action_map,
-        'file_infos': file_infos,
+        'action_counts': {k: int(v) for k, v in action_counts.items()},
+        'agent_radius': int(agent_radius),
+        'mic_offsets': [[int(dy), int(dx)] for dy, dx in mic_offsets],
+        'action_map': {k: int(v) for k, v in action_map.items()},
+        'file_infos': [
+            {
+                'path': str(info['path']),
+                'key': info['key'],
+                'valid_count': len(info['valid_positions']),
+                'end_pos': [int(info['end_pos'][0]), int(info['end_pos'][1])],
+                'start_pos': [int(info['start_pos'][0]), int(info['start_pos'][1])],
+            }
+            for info in file_infos
+        ],
     }
 
     metadata_path = output_dir / "metadata.json"

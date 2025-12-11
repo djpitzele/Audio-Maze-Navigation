@@ -116,12 +116,36 @@ def compute_class_distribution_lmdb(dataset) -> Dict[str, int]:
     return dataset.metadata['action_counts']
 
 
-def compute_class_weights_lmdb(counts: Dict[str, int]) -> torch.Tensor:
-    """Compute inverse frequency class weights."""
+def compute_class_weights_lmdb(counts: Dict[str, int], method='sqrt') -> torch.Tensor:
+    """
+    Compute class weights for imbalanced data.
+
+    Args:
+        counts: Dictionary of class name -> sample count
+        method: 'inverse' (harsh), 'sqrt' (balanced), or 'log' (soft)
+
+    Returns:
+        Tensor of class weights
+    """
     action_names = ['stop', 'up', 'down', 'left', 'right']
     arr = np.array([counts.get(name, 1) for name in action_names], dtype=np.float32)
     total = arr.sum()
-    weights = total / (len(action_names) * arr)
+
+    if method == 'inverse':
+        # Inverse frequency: weight_i = total / (n_classes * count_i)
+        weights = total / (len(action_names) * arr)
+    elif method == 'sqrt':
+        # Square root smoothing (more balanced)
+        weights = np.sqrt(total / arr)
+        # Normalize to sum to n_classes
+        weights = weights / weights.sum() * len(action_names)
+    elif method == 'log':
+        # Log smoothing (softest)
+        weights = np.log(total / arr + 1)
+        weights = weights / weights.sum() * len(action_names)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
     return torch.tensor(weights, dtype=torch.float32)
 
 

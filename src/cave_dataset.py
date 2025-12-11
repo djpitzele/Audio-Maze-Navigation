@@ -41,12 +41,36 @@ def compute_class_distribution(dataset) -> Dict[str, int]:
     return counts
 
 
-def compute_class_weights(counts: Dict[str, int]) -> torch.Tensor:
-    """Compute inverse frequency class weights (higher weight for rare classes)."""
+def compute_class_weights(counts: Dict[str, int], method='sqrt') -> torch.Tensor:
+    """
+    Compute class weights for imbalanced data.
+
+    Args:
+        counts: Dictionary of class name -> sample count
+        method: 'inverse' (harsh), 'sqrt' (balanced), or 'log' (soft)
+
+    Returns:
+        Tensor of class weights
+    """
     arr = np.array([counts.get(name.lower(), 1) for name in ACTION_NAMES], dtype=np.float32)
     total = arr.sum()
-    # Inverse frequency weighting: weight_i = total / (n_classes * count_i)
-    weights = total / (len(ACTION_NAMES) * arr)
+
+    if method == 'inverse':
+        # Inverse frequency: weight_i = total / (n_classes * count_i)
+        weights = total / (len(ACTION_NAMES) * arr)
+    elif method == 'sqrt':
+        # Square root smoothing (more balanced)
+        # weight_i = sqrt(total / count_i)
+        weights = np.sqrt(total / arr)
+        # Normalize to sum to n_classes (optional, for stability)
+        weights = weights / weights.sum() * len(ACTION_NAMES)
+    elif method == 'log':
+        # Log smoothing (softest)
+        weights = np.log(total / arr + 1)
+        weights = weights / weights.sum() * len(ACTION_NAMES)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
     return torch.tensor(weights, dtype=torch.float32)
 
 
