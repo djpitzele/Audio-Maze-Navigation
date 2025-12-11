@@ -8,15 +8,36 @@ using acoustic reverberations simulated with the k-Wave library.
 __version__ = "0.1.0"
 __author__ = "Research Team"
 
-from .simulation import AcousticSimulator
-from .environment import MazeGenerator, Oracle
-from .model import AudioNavCNN
-from .dataset import AcousticGridDataset
+from .cave_dataset import (
+    MultiCaveDataset,
+    ACTION_MAP,
+    ACTION_NAMES,
+    MIC_OFFSETS,
+    compute_class_distribution,
+    compute_class_weights,
+)
+from .lmdb_dataset import (
+    LMDBAcousticDataset,
+    compute_class_distribution_lmdb,
+    compute_class_weights_lmdb,
+)
+from .models import (
+    AcousticCNN1D,
+    CompactAcousticNet,
+    SpatialTemporalAcousticNet,
+)
 
 __all__ = [
-    "AcousticSimulator",
-    "MazeGenerator",
-    "Oracle",
-    "AudioNavCNN",
-    "AcousticGridDataset",
+    "MultiCaveDataset",
+    "LMDBAcousticDataset",
+    "ACTION_MAP",
+    "ACTION_NAMES",
+    "MIC_OFFSETS",
+    "compute_class_distribution",
+    "compute_class_weights",
+    "compute_class_distribution_lmdb",
+    "compute_class_weights_lmdb",
+    "AcousticCNN1D",
+    "CompactAcousticNet",
+    "SpatialTemporalAcousticNet",
 ]

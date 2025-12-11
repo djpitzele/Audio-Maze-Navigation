@@ -9,6 +9,7 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
+import multiprocessing as mp
 
 # Thread limiting per process (leave headroom for system)
 os.environ['OMP_NUM_THREADS'] = '12'
@@ -19,9 +20,10 @@ from audio_cave_sim import AudioCaveSim
 
 # Dataset parameters
 DATASET_DIR = r"D:\audiomaze_dataset"
-NUM_SAMPLES = 100
+NUM_SAMPLES = 1000
 GRID_SIZE = 60
 RESOLUTION = 0.01  # meters
+SAMPLE_TIMEOUT = 120  # seconds per sample (kills and skips on hang)
 
 def generate_single_cave(sample_idx):
     """Generate a single cave simulation and save to HDF5.
@@ -45,7 +47,9 @@ def generate_single_cave(sample_idx):
 
         try:
             # Create cave simulation (runs automatically in __init__)
+            print(f"[{sample_idx:04d}] start AudioCaveSim", flush=True)
             cave = AudioCaveSim(Nx=GRID_SIZE, Ny=GRID_SIZE, res=RESOLUTION)
+            print(f"[{sample_idx:04d}] sim complete, preparing save", flush=True)
 
             # Reshape pressure field from (Nt, Nx*Ny) to (Nx, Ny, Nt)
             pressure_timeseries = cave.sensor_data['p'].T  # (Nt, Nx*Ny) -> (Nx*Ny, Nt)
@@ -104,6 +108,11 @@ def generate_single_cave(sample_idx):
         import traceback
         return (sample_idx, False, f"Failed cave {sample_idx:04d}: {str(e)}\n{traceback.format_exc()}")
 
+def _worker(idx, q):
+    """Helper to run a single cave in a subprocess for timeout control."""
+    q.put(generate_single_cave(idx))
+
+
 def main():
     """Main function to generate dataset SEQUENTIALLY (avoids k-Wave temp file collisions)."""
     print("=" * 80)
@@ -133,20 +142,37 @@ def main():
     # Generate sequentially to avoid k-Wave temp file collisions
     completed = 0
     failed = 0
+    skipped = 0
 
     for idx in range(NUM_SAMPLES):
         print(f"\n{'='*60}")
         print(f"Generating cave {idx+1}/{NUM_SAMPLES} (index {idx:04d})...")
         print(f"{'='*60}")
 
-        sample_idx, success, message = generate_single_cave(idx)
-
-        if success:
-            completed += 1
-            print(f"✓ Cave {sample_idx:04d} completed successfully")
+        out_path = Path(DATASET_DIR) / f"cave_{idx:04d}.h5"
+        if out_path.exists():
+            skipped += 1
+            completed += 1  # count toward overall progress
+            print(f"✓ Cave {idx:04d} already exists, skipping generation")
         else:
-            failed += 1
-            print(f"✗ ERROR: {message}")
+            # Run generation in a subprocess to avoid hangs
+            q = mp.Queue()
+            p = mp.Process(target=_worker, args=(idx, q))
+            p.start()
+            p.join(SAMPLE_TIMEOUT)
+            if p.is_alive():
+                p.terminate()
+                p.join()
+                sample_idx, success, message = idx, False, f"Timeout after {SAMPLE_TIMEOUT}s"
+            else:
+                sample_idx, success, message = q.get()
+
+            if success:
+                completed += 1
+                print(f"✓ Cave {sample_idx:04d} completed successfully")
+            else:
+                failed += 1
+                print(f"✗ ERROR: {message}")
 
         # Print progress summary
         elapsed = (datetime.now() - start_time).total_seconds()
@@ -168,6 +194,7 @@ def main():
     print("=" * 80)
     print(f"Total samples: {NUM_SAMPLES}")
     print(f"Successful: {completed}")
+    print(f"Skipped (already existed): {skipped}")
     print(f"Failed: {failed}")
     print(f"Total time: {elapsed/60:.2f} minutes ({elapsed:.0f}s)")
     if completed > 0:

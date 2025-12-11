@@ -52,22 +52,47 @@ class AudioCave:
         # Find largest connected component (main cave)
         grid = self._keep_largest_component(grid)
 
-        # Find start and goal positions
-        air_cells = np.argwhere(grid == 0)
-        if air_cells.size > 0:
-            top_left = air_cells[np.random.randint(air_cells.shape[0])]
-            bottom_right = top_left
+        # Find start and goal positions with 3x3 footprint clearance
+        valid_cells = self._find_footprint_clear_cells(grid, radius=1)
+        if len(valid_cells) >= 2:
+            start_idx = np.random.randint(len(valid_cells))
+            self.start = valid_cells[start_idx]
+            self.end = self.start
             # choose end point sufficiently far from start
-            while np.linalg.norm(bottom_right - top_left) < (self.width + self.height) / 4:
-                bottom_right = air_cells[np.random.randint(air_cells.shape[0])]
-            self.start = tuple(top_left)
-            self.end = tuple(bottom_right)
+            tries = 0
+            min_dist = (self.width + self.height) / 4
+            while (np.linalg.norm(np.array(self.end) - np.array(self.start)) < min_dist) and tries < 500:
+                self.end = valid_cells[np.random.randint(len(valid_cells))]
+                tries += 1
+            if self.start == self.end and len(valid_cells) > 1:
+                self.end = valid_cells[(start_idx + 1) % len(valid_cells)]
         else:
-            self.start = (1, 1)
-            self.end = (self.height - 2, self.width - 2)
+            # Fallback to any air cell if footprint clearance is impossible
+            air_cells = np.argwhere(grid == 0)
+            if air_cells.size > 0:
+                top_left = air_cells[np.random.randint(air_cells.shape[0])]
+                bottom_right = top_left
+                while np.linalg.norm(bottom_right - top_left) < (self.width + self.height) / 4:
+                    bottom_right = air_cells[np.random.randint(air_cells.shape[0])]
+                self.start = tuple(top_left)
+                self.end = tuple(bottom_right)
+            else:
+                self.start = (1, 1)
+                self.end = (self.height - 2, self.width - 2)
 
         print(f"end: {self.end}")
         self.grid = grid.astype(np.int32)
+
+    def _find_footprint_clear_cells(self, grid, radius=1):
+        """Return list of (row, col) where a (2r+1)x(2r+1) footprint is fully air."""
+        rows, cols = grid.shape
+        valid = []
+        for r in range(radius, rows - radius):
+            for c in range(radius, cols - radius):
+                window = grid[r - radius:r + radius + 1, c - radius:c + radius + 1]
+                if np.all(window == 0):
+                    valid.append((r, c))
+        return valid
 
     def _smooth_cave(self, grid, neighbors_threshold=5):
         """

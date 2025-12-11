@@ -26,3 +26,4 @@ seaborn
 # Optional: For model checkpointing and experiment tracking
 # tensorboard
 # wandb
+lmdb
