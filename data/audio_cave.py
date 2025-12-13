@@ -218,15 +218,18 @@ class AudioCave:
     def solve_maze(self):
         """Compute action labels using BFS from goal."""
         rows, cols = self.grid.shape
-        self.action_grid = [["" for _ in range(cols)] for _ in range(rows)]
+        self.action_grid = [[[] for _ in range(cols)] for _ in range(rows)]
 
         start_node = self.end
-        self.action_grid[start_node[0]][start_node[1]] = "stop"
+        self.action_grid[start_node[0]][start_node[1]] = ["stop"]
+
+        # First pass: compute distance from each cell to goal
+        distance = [[-1 for _ in range(cols)] for _ in range(rows)]
+        distance[start_node[0]][start_node[1]] = 0
 
         queue = deque([start_node])
         visited = {start_node}
 
-        # BFS from goal: for each neighbor, assign the action that walks back to the goal
         # Grid convention: row = y (up is -1), col = x (right is +1)
         directions = [
             ((0, 1), "left"),   # neighbor to the right -> go left to goal
@@ -235,15 +238,28 @@ class AudioCave:
             ((-1, 0), "down")   # neighbor above -> go down to goal
         ]
 
+        # BFS to compute distances
         while queue:
             r, c = queue.popleft()
             for (dr, dc), action in directions:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < rows and 0 <= nc < cols:
                     if self.grid[nr, nc] == 0 and (nr, nc) not in visited:
-                        self.action_grid[nr][nc] = action
+                        distance[nr][nc] = distance[r][c] + 1
                         visited.add((nr, nc))
                         queue.append((nr, nc))
+
+        # Second pass: for each cell, find all actions that move to a neighbor with distance exactly 1 less
+        for r in range(rows):
+            for c in range(cols):
+                if self.grid[r, c] == 0 and distance[r][c] > 0:  # Valid walkable cell (not wall, not goal)
+                    optimal_actions = []
+                    for (dr, dc), action in directions:
+                        nr, nc = r + dr, c + dc
+                        if 0 <= nr < rows and 0 <= nc < cols:
+                            if self.grid[nr, nc] == 0 and distance[nr][nc] == distance[r][c] - 1:
+                                optimal_actions.append(action)
+                    self.action_grid[r][c] = optimal_actions
 
     def expand_to_3x3_blocks(self):
         """
@@ -295,14 +311,49 @@ class AudioCave:
         axes[0].legend()
         axes[0].axis('image')
 
-        # Action field
-        symbol_map = {"up": 1, "down": 2, "left": 3, "right": 4, "stop": 5, "": 0}
-        action_numeric = np.vectorize(symbol_map.get)(self.action_grid)
-        axes[1].imshow(action_numeric.T, origin='lower', cmap='tab10', vmin=0, vmax=5)
+        # Action field with color blending
+        # Define colors for each action: RGB values
+        # Note: action names correspond to grid direction mapping:
+        # "up" = moving down in grid (row +1), "down" = moving up in grid (row -1)
+        # "left" = moving right in grid (col +1), "right" = moving left in grid (col -1)
+        action_colors = {
+            "up": np.array([0.0, 0.0, 1.0]),      # Blue (moving down in grid)
+            "down": np.array([1.0, 1.0, 0.0]),    # Yellow (moving up in grid)
+            "left": np.array([1.0, 0.0, 0.0]),    # Red (moving right in grid)
+            "right": np.array([0.0, 1.0, 0.0]),   # Green (moving left in grid)
+            "stop": np.array([0.5, 0.5, 0.5])     # Gray
+        }
+        
+        rows, cols = len(self.action_grid), len(self.action_grid[0])
+        action_image = np.zeros((rows, cols, 3), dtype=np.float32)
+        
+        # Create color image by blending colors for cells with multiple actions
+        for r in range(rows):
+            for c in range(cols):
+                actions = self.action_grid[r][c]
+                if actions:  # If not empty
+                    if isinstance(actions, list):
+                        # New format: list of actions
+                        if len(actions) > 0:
+                            # Average the colors of all equally optimal actions
+                            color_sum = np.zeros(3)
+                            for action in actions:
+                                if action in action_colors:
+                                    color_sum += action_colors[action]
+                            action_image[r, c] = color_sum / len(actions)
+                    else:
+                        # Fallback for old format (single action string)
+                        if actions in action_colors:
+                            action_image[r, c] = action_colors[actions]
+                else:
+                    # Empty cell (wall)
+                    action_image[r, c] = np.array([0.2, 0.2, 0.2])  # Dark gray for walls
+        
+        axes[1].imshow(np.transpose(action_image, (1, 0, 2)), origin='lower')
         axes[1].contour(self.grid.T, levels=[0.5], colors='black', linewidths=1)
         axes[1].scatter([self.end[0]], [self.end[1]], s=200, c='red',
                        marker='*', edgecolors='black', linewidths=2, label='Goal', zorder=10)
-        axes[1].set_title('Action Field')
+        axes[1].set_title('Action Field\n(Blue=Right, Yellow=Left, Red=Up, Green=Down)')
         axes[1].set_xlabel('X')
         axes[1].set_ylabel('Y')
         axes[1].legend()

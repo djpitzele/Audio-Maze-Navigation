@@ -4,6 +4,7 @@ from audio_cave import AudioCave
 import h5py
 from datetime import datetime
 import os
+import json
 
 # PERFORMANCE FIX: Limit CPU threads to prevent slowdown
 # Sometimes too many threads causes contention and slows down simulation
@@ -207,7 +208,9 @@ class AudioCaveSim:
             f.create_dataset('source_y', data=self.source_y)
             f.create_dataset('source_signal', data=self.source.p)
             f.create_dataset('sensor_data', data=self.sensor_data['p'])
-            f.create_dataset('action_grid', data=np.array(self.am.action_grid, dtype='S'))  # Save as bytes
+            # Save action_grid as JSON string (handles list of actions per cell)
+            action_grid_json = json.dumps(self.am.action_grid)
+            f.create_dataset('action_grid', data=action_grid_json)
             f.create_dataset('cave_grid', data=self.am.grid.T) # transpose to match visualization
             f.attrs['dx'] = self.dx
             f.attrs['dy'] = self.dy
