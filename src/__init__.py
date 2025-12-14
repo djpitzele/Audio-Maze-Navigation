@@ -22,10 +22,9 @@ from .lmdb_dataset import (
     compute_class_weights_lmdb,
 )
 from .models import (
-    AcousticCNN1D,
-    CompactAcousticNet,
-    SpatialTemporalAcousticNet,
     FocalLoss,
+    WavefrontNet,
+    WideFieldNet,
 )
 
 __all__ = [
