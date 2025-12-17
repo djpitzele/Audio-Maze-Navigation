@@ -1,0 +1,29 @@
+# Core Dependencies
+numpy
+scipy
+matplotlib
+
+# k-Wave for acoustic simulations
+k-wave-python
+mazelib
+
+# Deep Learning
+torch
+torchvision
+
+# Data Management
+h5py
+
+# Utilities
+tqdm
+# Jupyter Notebooks
+jupyter
+ipywidgets
+
+# Optional: For enhanced visualizations
+seaborn
+
+# Optional: For model checkpointing and experiment tracking
+# tensorboard
+# wandb
+lmdb
